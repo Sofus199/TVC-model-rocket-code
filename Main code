@@ -1,0 +1,137 @@
+#include <Servo.h>
+#include <MPU6050_tockn.h>
+#include <Wire.h>
+
+MPU6050 mpu6050(Wire);
+
+Servo Xservo;
+Servo Yservo;
+
+//varibles for pid:
+float errorx = 0;
+float intergralErrorx = 0;
+float derivativeErrorx = 0;
+float lastErrorx = 0;
+float outputx = 0;
+float errory = 0;
+float intergralErrory = 0;
+float derivativeErrory = 0;
+float lastErrory = 0;
+float outputy = 0;
+float p = 0.5; // insert your p gain
+float i = 0.2; // insert your i gain
+float d = 0.1; // insert your d gain
+float PxValue = 0;
+float IxValue = 0;
+float DxValue = 0;
+float PyValue = 0;
+float IyValue = 0;
+float DyValue = 0;
+unsigned long counter = 0;
+unsigned long lastCounter = 0;
+float timeTaken = 0;
+
+void setup() {
+  Serial.begin(115200); 
+  Xservo.attach(9); //attacth to the pin you want(pwm)
+  Yservo.attach(10); //attacth to the pin you want(pwm)
+  
+  Wire.begin();
+  mpu6050.begin();
+  mpu6050.calcGyroOffsets(true);
+  
+  Serial.println("");
+  Serial.print("P"); 
+  Serial.print(",");
+  Serial.print("I");
+  Serial.print(",");
+  Serial.print("D");
+  Serial.print(",");
+  Serial.print("OUT");
+  Serial.print(",");
+  Serial.println("REAL");
+}
+
+void loop() {
+  pid ();
+}
+
+void pid () {
+  lastCounter = millis();
+  if (millis() >= counter + 10) {
+  timeTaken = lastCounter - counter;
+  counter = millis();
+  
+  //mpu update
+  mpu6050.update();
+  //mpu to varible
+  float y = mpu6050.getAngleY();
+  float x = mpu6050.getAngleX();
+  
+  errorx = x;
+  intergralErrorx += errorx * timeTaken / 1000;
+  derivativeErrorx = (errorx - lastErrorx) / timeTaken / 1000;
+  lastErrorx = errorx;
+  PxValue = p * errorx;
+  IxValue = i * intergralErrorx;
+  DxValue = d * derivativeErrorx;
+  outputx = PxValue +  IxValue + DxValue;
+
+  errory = y;
+  intergralErrory += errory * timeTaken / 1000; 
+  derivativeErrory = (errory - lastErrory) / timeTaken / 1000;
+  lastErrory = errory;
+  PyValue = p * errory;
+  IyValue = i * intergralErrory;
+  DyValue = d * derivativeErrory;
+  outputy = PyValue +  IyValue + DyValue;
+
+
+  if (intergralErrorx > 10) { // you should change this intergal
+  intergralErrorx = 10; // -limiter until it matches like you want
+  }
+  if (intergralErrorx < -10) {
+  intergralErrorx = -10; // -limiter until it matches like you want
+  }
+
+  
+  if (outputx < -10) { //input the angle your tvc mount can move
+  outputx = -10;       //input the angle your tvc mount can move
+  }
+  if (outputx > 10) { //input the angle your tvc mount can move
+  outputx = 10;       //input the angle your tvc mount can move
+  }
+
+  if (intergralErrory < -10) { // you should change this intergal
+  intergralErrory = -10; // -limiter until it matches like you want
+  }
+  if (intergralErrory > 10) { // you should change this intergal
+  intergralErrory = 10; // -limiter until it matches like you want
+  } 
+  
+  if (outputy < -10) { //input the angle your tvc mount can move
+  outputy = -10;      //input the angle your tvc mount can move
+  }
+  if (outputy > 10) { //input the angle your tvc mount can move
+  outputy = 10;      //input the angle your tvc mount can move
+  }
+  
+  outputx = map (outputx, -10, 10, 0, 180); //input the angle your tvc mount can move and the servo
+  
+  outputy = map (outputy, -10, 10, 0, 180);  //input the angle your tvc mount can move and the servo
+  
+  Xservo.write(outputx);
+  Yservo.write(outputy);
+  
+  //Go to serial plotter and see the results
+  Serial.print(PyValue); 
+  Serial.print(",");
+  Serial.print(IyValue);
+  Serial.print(",");
+  Serial.print(DyValue);
+  Serial.print(",");
+  Serial.print(outputy);  
+  Serial.print(",");
+  Serial.println(y); 
+}
+}
